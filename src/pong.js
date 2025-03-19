@@ -2,7 +2,6 @@ import { Paddle } from "./paddle.js";
 import { Ball } from "./ball.js";
 import { Text } from "./text.js";
 
-
 export function Pong(canvas) {
 
   console.log("Welcome to PONG!");
@@ -90,6 +89,13 @@ export function Pong(canvas) {
     if (ball) { ball.draw(); }
     if (text) { text.draw(); }
 
+    // Emit the current state to the main process
+    window.electron.send('state', {
+      paddleLeft: { position: paddleLeft.position },
+      paddleRight: { position: paddleRight.position },
+      ball: ball ? { position: ball.position } : null
+    });
+
     // Program the next animation frame
     requestAnimationFrame(loop);
   }
@@ -99,4 +105,12 @@ export function Pong(canvas) {
   // Start the game
   requestAnimationFrame(loop)
 
+  // Listen for updates from the main process
+  window.electron.receive('update', (data) => {
+    paddleLeft.position = data.paddleLeft.position;
+    paddleRight.position = data.paddleRight.position;
+    if (ball) {
+      ball.position = data.ball.position;
+    }
+  });
 }
