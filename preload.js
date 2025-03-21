@@ -3,7 +3,7 @@ const net = require('net');
 const dgram = require('dgram');
 
 //// ========================== CONFIGURATION ========================== ////
-const SERVER_IP = '192.168.34.165'; // IP de ta VM
+const SERVER_IP = '10.93.168.143'; // IP de ta VM
 const TCP_PORT = 3000; // Port TCP
 const UDP_PORT = 4000; // Port UDP
 
@@ -19,7 +19,7 @@ function connectToTcpServer() {
     });
 
     tcpClient.on('data', (data) => {
-        console.log(`📩 Message reçu du serveur TCP: ${data.toString()}`);
+        // console.log(`📩 Message reçu du serveur TCP: ${data.toString()}`);
     });
 
     tcpClient.on('error', (err) => {
@@ -40,13 +40,19 @@ function sendUdpMessage(message) {
     const buffer = Buffer.from(message);
     udpClient.send(buffer, UDP_PORT, SERVER_IP, (err) => {
         if (err) console.error('❌ Erreur envoi UDP:', err);
-        else console.log(`📨 Message UDP envoyé: ${message}`);
+        // else console.log(`📨 Message UDP envoyé: ${message}`);
     });
 }
 
 // Réception des messages UDP
 udpClient.on('message', (msg, rinfo) => {
-    console.log(`📩 Message UDP reçu de ${rinfo.address}:${rinfo.port}: ${msg.toString()}`);
+    try {
+        const data = JSON.parse(msg.toString());
+        // Envoyer directement les données au renderer via webContents
+        ipcRenderer.send('game-update', data);
+    } catch (error) {
+        console.error("Erreur parsing JSON:", error);
+    }
 });
 
 // ========================== CONNEXION AUTOMATIQUE ========================== //
@@ -55,14 +61,26 @@ connectToTcpServer();
 
 // Exposer TCP et UDP au renderer.js
 contextBridge.exposeInMainWorld('network', {
-    sendUdp: (message) => sendUdpMessage(message)
+    sendUdp: (message) => sendUdpMessage(message),
+    onGameUpdate: (callback) => {
+        // Écouter les messages de mise à jour du jeu envoyés par main.js
+        ipcRenderer.on('game-update', (event, data) => callback(data));
+    }
 });
 
 contextBridge.exposeInMainWorld('electron', {
-  send: (channel, data) => {
-    ipcRenderer.send(channel, data);
-  },
-  receive: (channel, func) => {
-    ipcRenderer.on(channel, (event, ...args) => func(...args));
-  }
+    send: (channel, data) => {
+        // Liste blanche des canaux autorisés
+        const validChannels = ['game-update'];
+        if (validChannels.includes(channel)) {
+            ipcRenderer.send(channel, data);
+        }
+    },
+    receive: (channel, func) => {
+        // Liste blanche des canaux autorisés
+        const validChannels = ['game-update'];
+        if (validChannels.includes(channel)) {
+            ipcRenderer.on(channel, (event, ...args) => func(...args));
+        }
+    }
 });

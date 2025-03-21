@@ -89,28 +89,45 @@ export function Pong(canvas) {
     if (ball) { ball.draw(); }
     if (text) { text.draw(); }
 
-    // Emit the current state to the main process
-    window.electron.send('state', {
+    // Emit the current state to the server
+    window.network.sendUdp(JSON.stringify({
       paddleLeft: { position: paddleLeft.position },
       paddleRight: { position: paddleRight.position },
-      ball: ball ? { position: ball.position } : null
-    });
+      ball: ball ? { position: ball.position } : null,
+      text: text ? { text: text.text } : null
+    }));
 
     // Program the next animation frame
     requestAnimationFrame(loop);
   }
 
+  // Remplacez la partie à la fin par:
   createBall();
 
-  // Start the game
-  requestAnimationFrame(loop)
+  // Écouter les mises à jour du serveur
+  window.electron.receive('game-update', (data) => {
+    // console.log(data)
+      if (data.paddleLeft && data.paddleRight) {
+          paddleLeft.position = data.paddleLeft.position;
+          paddleRight.position = data.paddleRight.position;
+          
+          if (data.ball && ball) {
+              ball.position = data.ball.position;
+          }
 
-  // Listen for updates from the main process
-  window.electron.receive('update', (data) => {
-    paddleLeft.position = data.paddleLeft.position;
-    paddleRight.position = data.paddleRight.position;
-    if (ball) {
-      ball.position = data.ball.position;
-    }
+          // Gérer d'autres états du jeu si nécessaire
+          if (data.text) {
+              text = new Text({ ctx, text: data.text.text });
+              text.position = [
+                  canvas.width / 2.0,
+                  canvas.height / 2.0
+              ];
+
+              endGame();
+            }
+      }
   });
+
+  // Start the game
+  requestAnimationFrame(loop);
 }
